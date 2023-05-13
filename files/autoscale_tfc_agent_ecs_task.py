@@ -5,12 +5,12 @@ import json
 import os
 
 
-CLUSTER = os.getenv("CLUSTER", None)
-MAX_AGENTS = os.getenv("MAX_AGENTS", None)
-REGION = os.getenv("REGION", None)
-SALT_PATH = os.getenv("SALT_PATH", None)
-SERVICE = os.getenv("SERVICE", None)
-SSM_PARAM_NAME = os.getenv("SSM_PARAM_NAME", None)
+ECS_CLUSTER_NAME                        = os.getenv("ECS_CLUSTER_NAME", None)
+ECS_SERVICE_NAME                        = os.getenv("ECS_SERVICE_NAME", None)
+REGION                                  = os.getenv("REGION", None)
+MAX_AGENTS                              = os.getenv("MAX_AGENTS", None)
+NOTIFICATION_TOKEN_SSM_PARAMETER_NAME   = os.getenv("NOTIFICATION_TOKEN_SSM_PARAMETER_NAME", None)
+TFC_CURRENT_COUNT_SSM_PARAMETER_NAME    = os.getenv("TFC_CURRENT_COUNT_SSM_PARAMETER_NAME", None)
 
 
 ADD_SERVICE_STATES = {'pending'}
@@ -33,7 +33,7 @@ ecs = session.client('ecs')
 def lambda_handler(event, context):
     print(event)
     message = bytes(event['body'], 'utf-8')
-    secret = bytes(ssm.get_parameter(Name=SALT_PATH, WithDecryption=True)['Parameter']['Value'], 'utf-8')
+    secret = bytes(ssm.get_parameter(Name=NOTIFICATION_TOKEN_SSM_PARAMETER_NAME, WithDecryption=True)['Parameter']['Value'], 'utf-8')
     hash = hmac.new(secret, message, hashlib.sha512)
     if hash.hexdigest() == event['headers']['X-Tfe-Notification-Signature']:
         # HMAC verified
@@ -59,9 +59,9 @@ def post(event):
     post_response = "I'm here!"
 
     response = ecs.describe_services(
-        cluster=CLUSTER,
+        cluster=ECS_CLUSTER_NAME,
         services=[
-            SERVICE,
+            ECS_SERVICE_NAME,
         ]
     )
 
@@ -84,19 +84,19 @@ def post(event):
 
 
 def update_service_count(client, operation):
-    num_runs_queued = int(ssm.get_parameter(Name=SSM_PARAM_NAME)['Parameter']['Value'])
+    num_runs_queued = int(ssm.get_parameter(Name=TFC_CURRENT_COUNT_SSM_PARAMETER_NAME)['Parameter']['Value'])
     if operation is 'add':
         num_runs_queued = num_runs_queued + 1
     elif operation is 'sub':
         num_runs_queued=num_runs_queued - 1 if num_runs_queued > 0 else 0
     else:
         return
-    response = ssm.put_parameter(Name=SSM_PARAM_NAME, Value=str(num_runs_queued), Type='String', Overwrite=True)
+    response = ssm.put_parameter(Name=TFC_CURRENT_COUNT_SSM_PARAMETER_NAME, Value=str(num_runs_queued), Type='String', Overwrite=True)
 
     desired_count=int(MAX_AGENTS) if num_runs_queued > int(MAX_AGENTS) else num_runs_queued
     client.update_service(
-        cluster=CLUSTER,
-        service=SERVICE,
+        cluster=ECS_CLUSTER_NAME,
+        service=ECS_SERVICE_NAME,
         desiredCount=desired_count
     )
 
