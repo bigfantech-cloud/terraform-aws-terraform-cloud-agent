@@ -23,6 +23,7 @@ Setup Terraform Cloud Agent in ECS FARGATE cluster
 
 | Name              | Description                                | Type         | Default |
 | ----------------- | ------------------------------------------ | ------------ | ------- |
+| `project_name`    | | string       |         |
 | `tfc_agent_token` | Terraform Cloud Agent Token                | string       |         |
 | `aws_region`      | AWS region where the resources are created | string       |         |
 | `vpc_id`          | VPC to deploy agent into                   | string       |         |
