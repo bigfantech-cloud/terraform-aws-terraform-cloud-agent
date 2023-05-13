@@ -27,8 +27,6 @@ Setup Terraform Cloud Agent in ECS FARGATE cluster
 | `aws_region`      | AWS region where the resources are created | string       |         |
 | `vpc_id`          | VPC to deploy agent into                   | string       |         |
 | `subnet_ids`      | List of Subnet IDs to deploy agent into    | list(string) |         |
-|                   |                                            |              |         |
-|                   |                                            |              |         |
 
 ### Optional Variables
 
