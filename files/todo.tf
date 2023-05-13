@@ -1,60 +1,63 @@
-resource "aws_lambda_function" "webhook" {
-  function_name           = "${module.this.id}-webhook"
-  description             = "Receives webhook notifications from TFC and automatically adjusts the number of tfc agents running."
+data "archive_file" "autoscale_tfc_agent_ecs_task" {
+  type        = "zip"
+  source_file = "${path.module}/script/autoscale_tfc_agent_ecs_task.py"
+  output_path = "${path.module}/script/autoscale_tfc_agent_ecs_task.zip"
+}
+
+resource "aws_s3_bucket" "autoscale_tfc_agent_ecs_task" {
+  bucket = "${module.this.id}-tfc-agent-ecs-task-autoscaler-code"
+}
+
+resource "aws_s3_bucket_object" "autoscale_tfc_agent_ecs_task" {
+  bucket = aws_s3_bucket.autoscale_tfc_agent_ecs_task.id
+  key    = "v${var.lambda_code_version}/autoscale_tfc_agent_ecs_task.zip"
+  source = data.archive_file.autoscale_tfc_agent_ecs_task.output_path
+
+  etag = filemd5(data.archive_file.autoscale_tfc_agent_ecs_task.output_path)
+}
+
+resource "aws_lambda_function" "autoscale_tfc_agent_ecs_task" {
+  function_name           = "${module.this.id}-tfc-agent-ecs-task-autoscaler"
+  description             = "Receives webhook notifications from TFC and automatically adjusts the number of TFC agents running in ECS"
   code_signing_config_arn = aws_lambda_code_signing_config.this.arn
   role                    = aws_iam_role.lambda_exec.arn
-  handler                 = "main.lambda_handler"
+  handler                 = "autoscale_tfc_agent_ecs_task.lambda_handler"
   runtime                 = "python3.7"
 
-  s3_bucket = aws_s3_bucket.webhook.bucket
-  s3_key    = aws_s3_bucket_object.webhook.id
+  s3_bucket = aws_s3_bucket.autoscale_tfc_agent_ecs_task.id
+  s3_key    = aws_s3_bucket_object.autoscale_tfc_agent_ecs_task.id
 
   environment {
     variables = {
-      CLUSTER        = aws_ecs_cluster.tfc_agent.name
-      MAX_AGENTS     = var.max_tfc_agent_count
-      REGION         = var.aws_region
-      SALT_PATH      = aws_ssm_parameter.notification_token.name
-      SERVICE        = aws_ecs_service.tfc_agent.name
-      SSM_PARAM_NAME = aws_ssm_parameter.current_count.name
+      ECS_CLUSTER_NAME                      = aws_ecs_cluster.tfc_agent.name
+      ECS_SERVICE_NAME                      = aws_ecs_service.tfc_agent.name
+      REGION                                = var.aws_regiom
+      MAX_AGENTS                            = var.max_tfc_agent_count
+      NOTIFICATION_TOKEN_SSM_PARAMETER_NAME = aws_ssm_parameter.notification_token.name
+      TFC_CURRENT_COUNT_SSM_PARAMETER_NAME  = aws_ssm_parameter.tfc_agent_current_count.name
     }
   }
 }
 
-resource "aws_ssm_parameter" "current_count" {
-  name        = "${module.this.id}-tfc-agent-current-count"
+resource "aws_ssm_parameter" "tfc_agent_current_count" {
+  name        = "/${module.this.id}/tfc/agent-current-count"
   description = "Terraform Cloud agent current count"
   type        = "String"
   value       = var.desired_count
 }
 
 resource "aws_ssm_parameter" "notification_token" {
-  name        = "${module.this.id}-tfc-notification-token"
+  name        = "/${module.this.id}/tfc/notification-token"
   description = "Terraform Cloud webhook notification token"
   type        = "SecureString"
   value       = var.notification_token
 }
 
-resource "aws_s3_bucket" "webhook" {
-  bucket = module.this.id
-  acl    = "private"
-}
+#--
+# IAM 
+#--
 
-resource "aws_s3_bucket_object" "webhook" {
-  bucket = aws_s3_bucket.webhook.id
-  key    = "v${var.lambda_app_version}/webhook.zip"
-  source = "${path.module}/files/webhook.zip"
-
-  etag = filemd5("${path.module}/files/webhook.zip")
-}
-
-resource "aws_iam_role" "lambda_exec" {
-  name = "${module.this.id}-webhook-lambda"
-
-  assume_role_policy = data.aws_iam_policy_document.webhook_assume_role_policy_definition.json
-}
-
-data "aws_iam_policy_document" "webhook_assume_role_policy_definition" {
+data "aws_iam_policy_document" "assume_role_policy_definition" {
   statement {
     effect  = "Allow"
     actions = ["sts:AssumeRole"]
@@ -65,17 +68,11 @@ data "aws_iam_policy_document" "webhook_assume_role_policy_definition" {
   }
 }
 
-resource "aws_iam_role_policy" "lambda_policy" {
-  role   = aws_iam_role.lambda_exec.name
-  name   = "${module.this.id}-lambda-webhook-policy"
-  policy = data.aws_iam_policy_document.lambda_policy_definition.json
-}
-
 data "aws_iam_policy_document" "lambda_policy_definition" {
   statement {
     effect    = "Allow"
     actions   = ["ssm:GetParameter"]
-    resources = [aws_ssm_parameter.notification_token.arn, aws_ssm_parameter.current_count.arn]
+    resources = [aws_ssm_parameter.notification_token.arn, aws_ssm_parameter.tfc_agent_current_count.arn]
   }
   statement {
     effect    = "Allow"
@@ -87,6 +84,18 @@ data "aws_iam_policy_document" "lambda_policy_definition" {
     actions   = ["ecs:DescribeServices", "ecs:UpdateService"]
     resources = ["*"]
   }
+}
+
+resource "aws_iam_role_policy" "lambda_policy" {
+  role   = aws_iam_role.lambda_exec.name
+  name   = "${module.this.id}-tfc-agent-ecs-task-autoscaler-policy"
+  policy = data.aws_iam_policy_document.lambda_policy_definition.json
+}
+
+resource "aws_iam_role" "lambda_exec" {
+  name = "${module.this.id}-tfc-agent-ecs-task-autoscaler"
+
+  assume_role_policy = data.aws_iam_policy_document.assume_role_policy_definition.json
 }
 
 resource "aws_iam_role_policy_attachment" "cloudwatch_lambda_attachment" {
@@ -178,8 +187,8 @@ resource "aws_lambda_code_signing_config" "this" {
 }
 
 
-variable "lambda_app_version" {
-  description = "Version of lambda to deploy. Default = 1.0.0"
+variable "lambda_code_version" {
+  description = "An version identifier for the Python script (Lambda function code), you will increase this version as you make changes to the script. Default = 1.0.0"
   type        = string
   default     = "1.0.0"
 }
@@ -187,4 +196,9 @@ variable "lambda_app_version" {
 variable "max_tfc_agent_count" {
   description = "(autoscalling with Lambda) Maximum number of Terraform Cloud agents to run. Default = 2"
   default     = 2
+}
+
+variable "notification_token" {
+  description = "Used to generate the HMAC on the notification request. Read more in the documentation."
+  default     = "ArandomStriNg"
 }
