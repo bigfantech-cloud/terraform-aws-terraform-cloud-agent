@@ -19,7 +19,7 @@ Setup Terraform Cloud Agent in ECS FARGATE cluster
 
 ## Variables
 
-#### Required Variables
+### Required Variables
 
 | Name              | Description                                | Type         | Default |
 | ----------------- | ------------------------------------------ | ------------ | ------- |
@@ -28,7 +28,7 @@ Setup Terraform Cloud Agent in ECS FARGATE cluster
 | `vpc_id`          | VPC to deploy agent into                   | string       |         |
 | `subnet_ids`      | List of Subnet IDs to deploy agent into    | list(string) |         |
 
-#### Optional Variables
+### Optional Variables
 
 | Name                               | Description                                                                                            | Type                                                                                   | Default                                                               |
 | ---------------------------------- | ------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
