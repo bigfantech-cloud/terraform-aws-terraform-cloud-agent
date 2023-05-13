@@ -11,13 +11,13 @@ To hire, email: `bigfantech@yahoo.com`
 
 Setup Terraform Cloud Agent in ECS FARGATE cluster
 
-## Variables
-
 ## Required Providers
 
 | Name                | Description |
 | ------------------- | ----------- |
 | aws (hashicorp/aws) | >= 4.47     |
+
+## Variables
 
 ### Required Variables
 
