@@ -83,17 +83,6 @@ variable "desired_count" {
   default     = 1
 }
 
-variable "lambda_app_version" {
-  description = "Version of lambda to deploy. Default = 1.0.0"
-  type        = string
-  default     = "1.0.0"
-}
-
-variable "max_tfc_agent_count" {
-  description = "(autoscalling with Lambda) Maximum number of Terraform Cloud agents to run. Default = 2"
-  default     = 2
-}
-
 variable "cloudwatch_log_retention_in_days" {
   description = "ECS CloudWatch log retention in days. Default = 90"
   type        = number
