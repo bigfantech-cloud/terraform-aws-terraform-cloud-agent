@@ -1,5 +1,3 @@
-
-from here to EOF is optional, for lambda autoscaling
 resource "aws_lambda_function" "webhook" {
   function_name           = "${module.this.id}-webhook"
   description             = "Receives webhook notifications from TFC and automatically adjusts the number of tfc agents running."
