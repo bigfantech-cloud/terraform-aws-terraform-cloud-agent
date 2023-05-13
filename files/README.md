@@ -60,3 +60,19 @@ resource "tfe_notification_configuration" "agent_lambda_webhook" {
  workspace_external_id     = tfe_workspace.test.id
 }
 ```
+
+## Autoscaling tfc-agent with a Lambda Function
+
+I've included a Lambda function that, when combined with [Terraform Cloud notifications](https://www.terraform.io/docs/cloud/workspaces/notifications.html), enables autoscaling the number of Terraform Cloud Agents running.
+
+![notification_config](../files/notification_config.png)
+
+To use it, you'll need to:
+
+1. Configure the `desired_count` and `max_tfc_agent_count` Terraform variables as desired. `desired_count` sets the baseline number of agents to always be running. `max_tfc_agent_count` sets the maximum number of agents allowed to be running at anytime.
+
+2. Configure a [generic notification](https://www.terraform.io/docs/cloud/workspaces/notifications.html#creating-a-notification-configuration) on each Terraform Cloud workspace that will be using an agent (workspace [execution mode](https://www.terraform.io/docs/cloud/workspaces/settings.html#execution-mode) set to `Agent`). I've included a helper script that will create them for you, however you can always create and manage these in the Terraform Cloud workspace Settings. You could also use the [Terraform Enterprise provider](https://registry.terraform.io/providers/hashicorp/tfe/latest/docs).
+
+That's it! When a run is queued, Terraform Cloud will send a notification to the Lambda function, increasing the number of running agents. When the run is completed, Terraform Cloud will send another notification to the Lambda function, decreasing the number of running agents.
+
+Note: [Speculative Plans](https://www.terraform.io/docs/cloud/run/index.html#speculative-plans) do not trigger this autoscaling.
